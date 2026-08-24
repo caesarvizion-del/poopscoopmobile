@@ -162,7 +162,7 @@
     </div>
 
     <div class="cam-hint desktop-hint">💡 Drag mouse/touch to orbit camera view • Scroll to zoom</div>
-    <button class="view-btn" onclick="cycleCameraView()" id="cam-view-btn">🎥 ORBIT CAM</button>
+    <button class="view-btn" onclick="cycleCameraView()" id="cam-view-btn">🎥 CHASE CAM</button>
 
     <div class="controls-panel desktop-hint">
         <h3>🚜 Vehicle Controls</h3>
@@ -1020,7 +1020,7 @@
             cameraViewMode = (cameraViewMode + 1) % 3;
             const camTag = document.getElementById('cam-view-btn');
             if (cameraViewMode === 0) {
-                if (camTag) camTag.innerText = "🎥 ORBIT CAM";
+                if (camTag) camTag.innerText = "🎥 CHASE CAM";
             } else if (cameraViewMode === 1) {
                 if (camTag) camTag.innerText = "🏗️ TOOL CAM";
             } else {
@@ -1059,8 +1059,15 @@
             if (inputs.rev) speed = -0.3;
             
             // Turning (can turn in place or while moving)
+            const prevHeading = vehicleHeading;
             if (inputs.steerL) vehicleHeading += 0.04 * (speed < 0 ? -1 : 1); // Reverse logic if backing up
             if (inputs.steerR) vehicleHeading -= 0.04 * (speed < 0 ? -1 : 1);
+
+            // Dynamically rotate camera yaw along with steering unless user is currently manually dragging the mouse
+            if (!isDraggingCam) {
+                const headingDelta = vehicleHeading - prevHeading;
+                camYaw += headingDelta;
+            }
 
             let nextX = vehiclePos.x + Math.sin(vehicleHeading) * speed;
             let nextZ = vehiclePos.z + Math.cos(vehicleHeading) * speed;
@@ -1243,7 +1250,7 @@
             }
 
             // --- Cameras ---
-            if (cameraViewMode === 0) { // Orbit
+            if (cameraViewMode === 0) { // Chase / Dynamic Follow Cam
                 const rigPos = excavatorChassis.position;
                 const cx = rigPos.x + Math.sin(camYaw) * camDistance * Math.cos(camPitch);
                 const cy = rigPos.y + Math.sin(camPitch) * camDistance + 2;
