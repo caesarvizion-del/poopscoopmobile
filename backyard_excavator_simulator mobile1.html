@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backyard Excavator Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #87CEEB; font-family: 'Inter', sans-serif; }
+        #canvas-container { width: 100%; height: 100%; display: block; }
+        
+        .hud-top-bar { 
+            position: absolute; 
+            top: 0; left: 0; width: 100%; 
+            background: rgba(15, 23, 42, 0.9); 
+            border-bottom: 2px solid #334155; 
+            color: white; text-shadow: 1px 1px 2px black; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+            backdrop-filter: blur(8px);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 20px;
+            box-sizing: border-box;
+            pointer-events: auto;
+        }
+
+        .hud-section { display: flex; align-items: center; gap: 15px; }
+        
+        .hud-top-bar h1 { margin: 0; font-size: 18px; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+        
+        .stat-badge { background: #1e293b; border: 1px solid #475569; padding: 4px 10px; border-radius: 6px; font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 8px; white-space: nowrap;}
+        .stat-badge span:first-child { color: #94a3b8; font-size: 12px; }
+        .stat-badge .val { color: white; font-size: 16px; }
+
+        .time-badge { border-color: #ef4444; }
+        .time-badge .val { color: #fca5a5; }
+        
+        .score-badge { border-color: #3b82f6; }
+        .score-badge .val { color: #60a5fa; }
+        
+        .magnet-status-badge { 
+            background: rgba(220, 38, 38, 0.9); padding: 6px 12px; border-radius: 6px; color: white; font-weight: 900; font-size: 14px; border: 2px solid #991b1b; text-transform: uppercase; transition: all 0.2s; white-space: nowrap;
+        }
+        .magnet-status-badge.in-range { background: rgba(234, 179, 8, 0.9); border-color: #a16207; box-shadow: 0 0 10px rgba(234, 179, 8, 0.6); }
+        .magnet-status-badge.attached { background: rgba(34, 197, 94, 0.9); border-color: #166534; box-shadow: 0 0 15px rgba(34, 197, 94, 0.8); transform: scale(1.05); }
+
+        .attachment-toolbar { display: flex; gap: 5px; }
+        .tool-btn { background: #334155; color: white; border: 2px solid #475569; padding: 4px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; transition: all 0.2s; white-space: nowrap;}
+        .tool-btn.active { background: #047857; border-color: #10b981; }
+        .tool-btn.tool-locked { display: none; } /* Hide locked tools in top bar to save space */
+        
+        .controls-panel { position: absolute; bottom: 10px; right: 10px; background: rgba(15, 23, 42, 0.85); padding: 15px; border-radius: 12px; color: white; font-size: 12px; border: 2px solid #334155; pointer-events: none; line-height: 1.6; }
+        .controls-panel h3 { margin: 0 0 8px 0; color: #fbbf24; font-size: 14px; text-transform: uppercase; }
+        .key { background: #334155; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-weight: bold; color: #38bdf8; }
+
+        .cam-hint { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; pointer-events: none; z-index: 10; font-weight: bold; }
+        .view-btn { position: absolute; top: 60px; right: 20px; z-index: 10; background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: background 0.2s; }
+        .view-btn:hover { background: #2563eb; }
+
+        .attachment-toolbar { display: flex; gap: 5px; margin-top: 10px; }
+        .tool-btn { background: #334155; color: white; border: 2px solid #475569; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; transition: all 0.2s; }
+        .tool-btn.active { background: #047857; border-color: #10b981; }
+        .tool-btn.tool-locked { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
+        
+        /* Score Popup */
+        .score-popup { position: absolute; color: #10b981; font-weight: 900; font-size: 24px; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; pointer-events: none; z-index: 50; animation: floatUp 1s ease-out forwards; }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-50px) scale(1.5); } }
+
+        /* Modal */
+        #game-modal { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; justify-content: center; align-items: center; visibility: hidden; opacity: 0; transition: opacity 0.3s; }
+        #game-modal.active { visibility: visible; opacity: 1; }
+        .modal-content { background: #1e293b; padding: 40px; border-radius: 16px; border: 4px solid #3b82f6; max-width: 500px; text-align: center; color: white; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal-content h2 { font-size: 32px; color: #fbbf24; margin-top: 0; margin-bottom: 20px; text-transform: uppercase; }
+        .modal-content p { font-size: 18px; margin-bottom: 30px; line-height: 1.5; color: #cbd5e1; }
+        .modal-btn { background: #3b82f6; color: white; border: none; padding: 15px 30px; font-size: 20px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: background 0.2s, transform 0.1s; text-transform: uppercase; }
+        .modal-btn:hover { background: #2563eb; transform: scale(1.05); }
+        .modal-btn:active { transform: scale(0.95); }
+
+        /* Pause Button */
+        .pause-btn { background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-left: 10px; }
+        .pause-btn:hover { background: #dc2626; }
+        .pause-btn.paused { background: #10b981; }
+        .pause-btn.paused:hover { background: #059669; }
+
+        /* Mobile Controls Overlay */
+        #mobile-controls {
+            display: none; position: absolute; bottom: 0; left: 0; width: 100%; height: 250px;
+            pointer-events: none; z-index: 50; user-select: none; padding: 20px; box-sizing: border-box;
+            touch-action: none;
+        }
+        #mobile-controls.active { display: flex; justify-content: space-between; align-items: flex-end; }
+        .joy-container { pointer-events: auto; display: flex; flex-direction: column; align-items: center; }
+        .joy-base {
+            width: 120px; height: 120px; background: rgba(15, 23, 42, 0.4); border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%; position: relative; backdrop-filter: blur(4px);
+        }
+        .joy-stick {
+            width: 50px; height: 50px; background: rgba(56, 189, 248, 0.8); border-radius: 50%;
+            position: absolute; top: 33px; left: 33px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.5);
+        }
+        .joy-stick.right-stick { background: rgba(250, 204, 21, 0.8); }
+        .mobile-hint-text { color: rgba(255,255,255,0.7); font-weight: 800; font-size: 11px; margin-top: 8px; text-shadow: 1px 1px 2px black; text-align: center; }
+        
+        .mobile-btn {
+            background: rgba(15, 23, 42, 0.6); color: white; border: 2px solid #475569; backdrop-filter: blur(4px);
+            border-radius: 50%; font-size: 20px; width: 50px; height: 50px; display: flex; justify-content: center; align-items: center;
+        }
+        .mobile-btn:active { transform: scale(0.9); background: rgba(56, 189, 248, 0.8); }
+        
+        .action-btn-mobile {
+            width: 70px; height: 70px; background: rgba(220, 38, 38, 0.8); border: 2px solid #ef4444; font-size: 16px; 
+            font-weight: 900; border-radius: 50%; pointer-events: auto; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            margin-bottom: 25px; transition: transform 0.1s;
+        }
+        .action-btn-mobile:active { transform: scale(0.9); background: #f87171; }
+        
+        /* Hide desktop hints on touch */
+        body.touch-device .desktop-hint { display: none !important; }
+        body.touch-device #cam-view-btn { top: 90px; } /* move cam button down slightly on mobile */
+    </style>
+</head>
+<body style="touch-action: none;">
+    <div id="canvas-container"></div>
+    
+    <div class="hud-top-bar">
+        <div class="hud-section">
+            <h1 id="level-title-display">💩 Level 1</h1>
+            
+            <div class="stat-badge time-badge">
+                <span>TIME</span> 
+                <span class="val"><span id="time-left">60</span>s</span>
+                <button id="pause-timer-btn" class="pause-btn" onclick="toggleTimer()">⏸️</button>
+            </div>
+            
+            <div class="stat-badge score-badge">
+                <span>SCORE</span> <span class="val" id="score-display">0</span>
+            </div>
+        </div>
+
+        <div class="hud-section">
+            <div class="stat-badge" id="ui-poop">
+                <span>💩 POOP</span> <span class="val"><span id="poop-count">0</span>/<span id="poop-target">0</span></span>
+            </div>
+            <div class="stat-badge" id="ui-grass" style="display:none;">
+                <span>🌿 GRASS</span> <span class="val"><span id="grass-count">0</span>/<span id="grass-target">0</span></span>
+            </div>
+            <div class="stat-badge" id="ui-weed" style="display:none;">
+                <span>🌱 WEED</span> <span class="val"><span id="weed-count">0</span>/<span id="weed-target">0</span></span>
+            </div>
+            
+            <div id="magnet-status" class="magnet-status-badge">🧲 OUT OF RANGE</div>
+            
+            <div class="attachment-toolbar">
+                <button id="tool-btn-0" class="tool-btn active" onclick="setAttachment(0)">🪣 CLAW</button>
+                <button id="tool-btn-1" class="tool-btn tool-locked" onclick="setAttachment(1)">✂️ WHACKER</button>
+                <button id="tool-btn-2" class="tool-btn tool-locked" onclick="setAttachment(2)">🧤 PULLER</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cam-hint desktop-hint">💡 Drag mouse/touch to orbit camera view • Scroll to zoom</div>
+    <button class="view-btn" onclick="cycleCameraView()" id="cam-view-btn">🎥 ORBIT CAM</button>
+
+    <div class="controls-panel desktop-hint">
+        <h3>🚜 Vehicle Controls</h3>
+        <div>Drive: <span class="key">W</span> <span class="key">S</span> or <span class="key">↑</span> <span class="key">↓</span></div>
+        <div>Steer: <span class="key">A</span> <span class="key">D</span> or <span class="key">←</span> <span class="key">→</span></div>
+        <h3 style="margin-top:10px;">🏗️ Arm Controls</h3>
+        <div>Turret L/R: <span class="key">J</span> / <span class="key">L</span></div>
+        <div>Boom Up/Dn: <span class="key">I</span> / <span class="key">K</span></div>
+        <div>Stick In/Out: <span class="key">U</span> / <span class="key">O</span></div>
+        <div style="margin-top: 5px; color:#fbbf24; font-weight:bold;">ACTION: <span class="key">E</span> (Grab/Trim/Drop)</div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <div class="joy-container left">
+            <div id="joy-left" class="joy-base">
+                <div id="stick-left" class="joy-stick"></div>
+            </div>
+            <div class="mobile-hint-text">DRIVE / STEER</div>
+        </div>
+        
+        <button id="btn-mobile-action" class="action-btn-mobile">ACTION</button>
+        
+        <div class="joy-container right">
+             <div style="display:flex; gap:15px; margin-bottom:15px; justify-content:center;">
+                <div style="display:flex; flex-direction: column; align-items: center;">
+                    <button id="btn-stick-out" class="mobile-btn">↗️</button>
+                    <div class="mobile-hint-text" style="font-size: 9px; margin-top:2px;">STICK OUT</div>
+                </div>
+                <div style="display:flex; flex-direction: column; align-items: center;">
+                    <button id="btn-stick-in" class="mobile-btn">↙️</button>
+                    <div class="mobile-hint-text" style="font-size: 9px; margin-top:2px;">STICK IN</div>
+                </div>
+            </div>
+            <div id="joy-right" class="joy-base">
+                <div id="stick-right" class="joy-stick right-stick"></div>
+            </div>
+            <div class="mobile-hint-text">BOOM / SWING</div>
+        </div>
+    </div>
+
+    <div id="game-modal">
+        <div class="modal-content">
+            <h2 id="modal-title">TITLE</h2>
+            <p id="modal-desc">Description goes here.</p>
+            <button class="modal-btn" id="modal-action-btn" onclick="handleModalAction()">ACTION</button>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let cameraViewMode = 0; 
+
+        // Level Configs (15 Levels)
+        const LEVELS = [
+            { level: 1, title: "Warmup", time: 120, poop: 3, grass: 0, weed: 0 },
+            { level: 2, title: "Messy Dog", time: 140, poop: 6, grass: 0, weed: 0 },
+            { level: 3, title: "Spread Out", time: 160, poop: 10, grass: 0, weed: 0 },
+            { level: 4, title: "Minefield", time: 180, poop: 15, grass: 0, weed: 0 },
+            { level: 5, title: "Overgrown", time: 200, poop: 5, grass: 5, weed: 0 }, // Grass introduced
+            { level: 6, title: "Lawn Care", time: 200, poop: 0, grass: 12, weed: 0 },
+            { level: 7, title: "Combo Breaker", time: 220, poop: 8, grass: 8, weed: 0 },
+            { level: 8, title: "Jungle", time: 240, poop: 0, grass: 20, weed: 0 },
+            { level: 9, title: "Hidden Surprises", time: 260, poop: 10, grass: 15, weed: 0 },
+            { level: 10, title: "Weed Problem", time: 240, poop: 0, grass: 0, weed: 5 }, // Weeds introduced
+            { level: 11, title: "Root Canal", time: 240, poop: 0, grass: 0, weed: 12 },
+            { level: 12, title: "Landscaper", time: 280, poop: 5, grass: 10, weed: 8 },
+            { level: 13, title: "Full Service", time: 300, poop: 10, grass: 15, weed: 10 },
+            { level: 14, title: "The Bad Yard", time: 320, poop: 15, grass: 20, weed: 15 },
+            { level: 15, title: "MASTER OPERATOR", time: 360, poop: 20, grass: 25, weed: 20 }
+        ];
+
+        let currentLevelIndex = 0;
+        let levelTimeLeft = 120;
+        let levelTimerInterval = null;
+        let score = 0;
+        let gameActive = false;
+        let isTimerPaused = false;
+
+        let levelTargetPoop = 0, levelTargetGrass = 0, levelTargetWeeds = 0;
+        let levelDeliveredPoop = 0, levelTrimmedGrass = 0, levelPulledWeeds = 0;
+
+        let modalActionCallback = null;
+
+        // Vehicle Parts
+        let excavatorChassis, turretHouse, boomArm, stickArm, clawMagnet, cargoBedGroup;
+        
+        // Attachments
+        let bucketMesh, whackerHeadMesh, weedPullerMesh, trimmerLine;
+        let activeAttachment = 0; // 0=Bucket, 1=Whacker, 2=Puller
+
+        // Items
+        let poopItems = [];
+        let grassItems = [];
+        let weedItems = [];
+        let grabbedItem = null;
+        let obstacles = []; // Array to track physical boundaries
+
+        // Game State
+        let vehiclePos = new THREE.Vector3(0, 0, 0);
+        let vehicleHeading = 0;
+        
+        // Hydraulics State
+        let turretSlewAngle = 0;
+        let boomPitch = 0.5;
+        let stickPitch = -0.2;
+
+        // Input State
+        const inputs = {
+            fwd: false, rev: false, steerL: false, steerR: false,
+            slewL: false, slewR: false, boomUp: false, boomDn: false,
+            stickIn: false, stickOut: false, action: false
+        };
+        let lastActionState = false;
+
+        // Trash Bin Bounds (Expanded heavily for easy dropping)
+        const hopperBounds = { minX: 18, maxX: 35, minZ: -30, maxZ: -10 };
+
+        // Camera Orbit logic
+        let isDraggingCam = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let camYaw = Math.PI / 4;
+        let camPitch = 0.5;
+        let camDistance = 25;
+        let stickCamAnchor;
+
+        // Visual Aids
+        let targetHighlightRing, laserLine;
+
+        // --- Mobile Touch Controls Logic ---
+        function setupTouchControls() {
+            window.addEventListener('touchstart', function detectTouch() {
+                document.body.classList.add('touch-device');
+                document.getElementById('mobile-controls').classList.add('active');
+                window.removeEventListener('touchstart', detectTouch);
+            }, { once: true });
+
+            function handleJoystick(baseId, stickId, onUpdate) {
+                const base = document.getElementById(baseId);
+                const stick = document.getElementById(stickId);
+                let touchId = null;
+                const maxDist = 35; 
+                
+                base.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (touchId !== null) return;
+                    touchId = e.changedTouches[0].identifier;
+                    updateStick(e.changedTouches[0]);
+                });
+                
+                base.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        if (e.changedTouches[i].identifier === touchId) {
+                            updateStick(e.changedTouches[i]);
+                            break;
+                        }
+                    }
+                });
+
+                const endTouch = (e) => {
+                    e.preventDefault();
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        if (e.changedTouches[i].identifier === touchId) {
+                            touchId = null;
+                            stick.style.transform = `translate(0px, 0px)`;
+                            onUpdate(0, 0);
+                            break;
+                        }
+                    }
+                };
+                
+                base.addEventListener('touchend', endTouch);
+                base.addEventListener('touchcancel', endTouch);
+                
+                function updateStick(touch) {
+                    const rect = base.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    let dx = touch.clientX - centerX;
+                    let dy = touch.clientY - centerY;
+                    const dist = Math.hypot(dx, dy);
+                    
+                    if (dist > maxDist) {
+                        dx = (dx / dist) * maxDist;
+                        dy = (dy / dist) * maxDist;
+                    }
+                    
+                    stick.style.transform = `translate(${dx}px, ${dy}px)`;
+                    onUpdate(dx / maxDist, dy / maxDist); // Normalize to -1.0 to 1.0
+                }
+            }
+
+            // Left Joystick Maps to Driving W/A/S/D
+            handleJoystick('joy-left', 'stick-left', (nx, ny) => {
+                inputs.fwd = ny < -0.3;
+                inputs.rev = ny > 0.3;
+                inputs.steerL = nx < -0.3;
+                inputs.steerR = nx > 0.3;
+            });
+
+            // Right Joystick Maps to Boom/Swing I/K/J/L
+            handleJoystick('joy-right', 'stick-right', (nx, ny) => {
+                inputs.boomUp = ny < -0.3;
+                inputs.boomDn = ny > 0.3;
+                inputs.slewL = nx < -0.3;
+                inputs.slewR = nx > 0.3;
+            });
+
+            // Stick Control Buttons map to U/O
+            const btnIn = document.getElementById('btn-stick-in');
+            const btnOut = document.getElementById('btn-stick-out');
+            
+            btnIn.addEventListener('touchstart', (e) => { e.preventDefault(); inputs.stickIn = true; });
+            btnIn.addEventListener('touchend', (e) => { e.preventDefault(); inputs.stickIn = false; });
+            
+            btnOut.addEventListener('touchstart', (e) => { e.preventDefault(); inputs.stickOut = true; });
+            btnOut.addEventListener('touchend', (e) => { e.preventDefault(); inputs.stickOut = false; });
+
+            // Big Action Button maps to E
+            const btnAction = document.getElementById('btn-mobile-action');
+            btnAction.addEventListener('touchstart', (e) => { e.preventDefault(); inputs.action = true; });
+            btnAction.addEventListener('touchend', (e) => { e.preventDefault(); inputs.action = false; });
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 40, 150);
+
+            const container = document.getElementById('canvas-container');
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+            sunLight.position.set(50, 80, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 200;
+            sunLight.shadow.camera.left = -60;
+            sunLight.shadow.camera.right = 60;
+            sunLight.shadow.camera.top = 60;
+            sunLight.shadow.camera.bottom = -60;
+            scene.add(sunLight);
+
+            // Ground
+            const groundGeo = new THREE.PlaneGeometry(200, 200, 32, 32);
+            const groundMat = new THREE.MeshStandardMaterial({ 
+                color: 0x3d7e28, roughness: 0.9, metalness: 0.05 
+            });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            buildEnvironment();
+            createTrashCanDropZone();
+            buildExcavator();
+            createPickupGuidanceVisuals();
+            
+            setupInputListeners();
+            setupTouchControls(); // Initialize mobile joysticks
+            setupCameraOrbitControls();
+
+            // Start Game
+            showLevelModal(
+                "BACKYARD EXCAVATOR",
+                "Welcome operator! Use the vehicle controls to drive. Use the arm controls to dig.<br><br><b>Level 1: Scoop all poop, drop it in the RED TRUCK BED behind you, then DRIVE THROUGH the glowing green Disposal Zone!</b>",
+                "START ENGINE",
+                () => { startLevel(0); }
+            );
+
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+        }
+
+        function buildEnvironment() {
+            // Fence
+            const fenceGeo = new THREE.BoxGeometry(100, 4, 1);
+            const fenceMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 1.0 });
+            
+            const fenceN = new THREE.Mesh(fenceGeo, fenceMat); fenceN.position.set(0, 2, -50); fenceN.castShadow=true; scene.add(fenceN);
+            const fenceS = new THREE.Mesh(fenceGeo, fenceMat); fenceS.position.set(0, 2, 50); fenceS.castShadow=true; scene.add(fenceS);
+            const fenceE = new THREE.Mesh(fenceGeo, fenceMat); fenceE.rotation.y = Math.PI/2; fenceE.position.set(50, 2, 0); fenceE.castShadow=true; scene.add(fenceE);
+            const fenceW = new THREE.Mesh(fenceGeo, fenceMat); fenceW.rotation.y = Math.PI/2; fenceW.position.set(-50, 2, 0); fenceW.castShadow=true; scene.add(fenceW);
+            
+            // Fence boundaries collision
+            obstacles.push({x: 0, z: -50, radius: 2}); obstacles.push({x: 0, z: 50, radius: 2});
+            obstacles.push({x: 50, z: 0, radius: 2}); obstacles.push({x: -50, z: 0, radius: 2});
+
+            // Trees
+            const trunkGeo = new THREE.CylinderGeometry(0.5, 0.8, 4, 8);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3c22 });
+            const leavesGeo = new THREE.DodecahedronGeometry(3);
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 });
+
+            for (let i = 0; i < 6; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.position.y = 2; trunk.castShadow = true;
+                const leaves = new THREE.Mesh(leavesGeo, leavesMat); leaves.position.y = 5; leaves.castShadow = true;
+                tree.add(trunk); tree.add(leaves);
+                
+                const angle = (i / 6) * Math.PI * 2;
+                const tx = Math.cos(angle) * 45;
+                const tz = Math.sin(angle) * 45;
+                tree.position.set(tx, 0, tz);
+                scene.add(tree);
+                obstacles.push({x: tx, z: tz, radius: 1.5}); // Add tree to obstacles
+            }
+
+            // --- Backyard Obstacles ---
+            // Doghouse
+            const doghouseGroup = new THREE.Group();
+            doghouseGroup.position.set(-25, 0, -15);
+            const dhBase = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), new THREE.MeshStandardMaterial({color: 0x8b0000}));
+            dhBase.position.y = 2; dhBase.castShadow = true; doghouseGroup.add(dhBase);
+            const dhRoof = new THREE.Mesh(new THREE.ConeGeometry(5, 3, 4), new THREE.MeshStandardMaterial({color: 0x111111}));
+            dhRoof.position.y = 5.5; dhRoof.rotation.y = Math.PI/4; dhRoof.castShadow = true; doghouseGroup.add(dhRoof);
+            const dhDoor = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 6.1), new THREE.MeshBasicMaterial({color: 0x000000}));
+            dhDoor.position.set(0, 1.5, 0); doghouseGroup.add(dhDoor);
+            scene.add(doghouseGroup);
+            obstacles.push({x: -25, z: -15, radius: 4}); // Add doghouse to obstacles
+
+            // Rocks
+            const rockGeo = new THREE.DodecahedronGeometry(2.5);
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, roughness: 0.9 });
+            const rockPositions = [ {x: 15, z: 25}, {x: -15, z: 30}, {x: 35, z: 10} ];
+            rockPositions.forEach(p => {
+                let rock = new THREE.Mesh(rockGeo, rockMat);
+                rock.position.set(p.x, 1.2, p.z);
+                rock.rotation.set(Math.random(), Math.random(), Math.random());
+                rock.castShadow = true;
+                scene.add(rock);
+                obstacles.push({x: p.x, z: p.z, radius: 2.5});
+            });
+
+            // Planter Boxes
+            const planterGeo = new THREE.BoxGeometry(10, 2, 4);
+            const planterMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            const planter1 = new THREE.Mesh(planterGeo, planterMat);
+            planter1.position.set(-35, 1, 15); planter1.castShadow = true;
+            scene.add(planter1);
+            obstacles.push({x: -35, z: 15, radius: 5.5});
+        }
+
+        function createTrashCanDropZone() {
+            const trashGroup = new THREE.Group();
+            // Positioned at X: 27, Z: -20
+            trashGroup.position.set(27, 0, -20);
+            
+            // Physical Dumpster bin
+            const binMat = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.5, metalness: 0.2 }); 
+            const binBody = new THREE.Mesh(new THREE.BoxGeometry(8, 6, 6), binMat);
+            binBody.position.y = 3;
+            binBody.castShadow = true;
+            trashGroup.add(binBody);
+            
+            // Dumpster interior (hollow illusion)
+            const binInside = new THREE.Mesh(new THREE.BoxGeometry(7.5, 6, 5.5), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+            binInside.position.y = 3.2;
+            trashGroup.add(binInside);
+            
+            // Dumpster Lids
+            const lidMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+            const lid1 = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.2, 6), lidMat);
+            lid1.position.set(-2, 6.1, 0); lid1.rotation.z = 0.5;
+            trashGroup.add(lid1);
+            
+            // Drive-over drop zone indicator in front of the dumpster
+            const padGeo = new THREE.PlaneGeometry(10, 8);
+            const padMat = new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+            const pad = new THREE.Mesh(padGeo, padMat);
+            pad.rotation.x = -Math.PI / 2;
+            pad.position.set(0, 0.1, 7); // Positioned in front
+            trashGroup.add(pad);
+
+            scene.add(trashGroup);
+            
+            // Add dumpster to physical obstacles
+            obstacles.push({x: 27, z: -20, radius: 4}); 
+        }
+
+        function createPoopMesh() {
+            const poopGroup = new THREE.Group();
+            const poopMat = new THREE.MeshStandardMaterial({ color: 0x4a2c11, roughness: 0.8 });
+            const base = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.4, 12, 24), poopMat);
+            base.rotation.x = Math.PI / 2; base.position.y = 0.3; base.castShadow = true;
+            const mid = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.3, 12, 24), poopMat);
+            mid.rotation.x = Math.PI / 2; mid.position.y = 0.7; mid.castShadow = true;
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.5, 12), poopMat);
+            tip.position.y = 1.1; tip.castShadow = true;
+            poopGroup.add(base); poopGroup.add(mid); poopGroup.add(tip);
+            return poopGroup;
+        }
+
+        function createTallGrassPatchMesh() {
+            const patchGroup = new THREE.Group();
+            const bladeMat = new THREE.MeshStandardMaterial({ color: 0x556b2f, side: THREE.DoubleSide });
+            const bladeGeo = new THREE.PlaneGeometry(0.1, 1.8);
+            for(let i=0; i<15; i++) {
+                const blade = new THREE.Mesh(bladeGeo, bladeMat);
+                blade.position.set((Math.random() - 0.5) * 1.5, 0.9, (Math.random() - 0.5) * 1.5);
+                blade.rotation.y = Math.random() * Math.PI;
+                blade.rotation.x = (Math.random() - 0.5) * 0.4;
+                blade.castShadow = true;
+                patchGroup.add(blade);
+            }
+            return patchGroup;
+        }
+
+        function createWeedMesh() {
+            const weedGroup = new THREE.Group();
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x8fbc8f, side: THREE.DoubleSide });
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57 });
+            
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5), stemMat);
+            stem.position.y = 0.75; stem.castShadow = true;
+            weedGroup.add(stem);
+
+            const leafGeo = new THREE.PlaneGeometry(0.4, 1.0);
+            for(let i=0; i<4; i++) {
+                const leaf = new THREE.Mesh(leafGeo, leafMat);
+                leaf.position.y = 0.5 + Math.random()*0.5;
+                leaf.rotation.x = -Math.PI / 3;
+                leaf.rotation.y = (Math.PI / 2) * i;
+                leaf.castShadow = true;
+                weedGroup.add(leaf);
+            }
+            return weedGroup;
+        }
+
+        function spawnLevelEntities(levelConfig) {
+            poopItems.forEach(p => scene.remove(p)); poopItems = [];
+            grassItems.forEach(g => scene.remove(g)); grassItems = [];
+            weedItems.forEach(w => scene.remove(w)); weedItems = [];
+            if (grabbedItem) { scene.remove(grabbedItem); grabbedItem = null; }
+
+            // Function to generate random pos away from start (0,0), trashcan, and physical obstacles
+            const getValidPos = () => {
+                let x, z, valid = false;
+                while(!valid) {
+                    x = (Math.random() - 0.5) * 80;
+                    z = (Math.random() - 0.5) * 80;
+                    const distToStart = Math.hypot(x, z);
+                    const distToTrash = Math.hypot(x - 27, z + 20);
+                    
+                    let hitObstacle = false;
+                    for (let obs of obstacles) {
+                        if (Math.hypot(x - obs.x, z - obs.z) < obs.radius + 1.5) {
+                            hitObstacle = true; break;
+                        }
+                    }
+                    
+                    if (distToStart > 10 && distToTrash > 15 && !hitObstacle) valid = true;
+                }
+                return {x, z};
+            };
+
+            for (let i = 0; i < levelConfig.poop; i++) {
+                const poop = createPoopMesh();
+                const pos = getValidPos();
+                poop.position.set(pos.x, 0, pos.z);
+                poop.userData = { id: 'poop_'+i, type: 'poop', delivered: false };
+                poopItems.push(poop);
+                scene.add(poop);
+            }
+
+            for (let i = 0; i < levelConfig.grass; i++) {
+                const grass = createTallGrassPatchMesh();
+                const pos = getValidPos();
+                grass.position.set(pos.x, 0, pos.z);
+                grass.userData = { id: 'grass_'+i, type: 'grass', trimmed: false };
+                grassItems.push(grass);
+                scene.add(grass);
+            }
+
+            for (let i = 0; i < levelConfig.weed; i++) {
+                const weed = createWeedMesh();
+                const pos = getValidPos();
+                weed.position.set(pos.x, 0, pos.z);
+                weed.userData = { id: 'weed_'+i, type: 'weed', pulled: false };
+                weedItems.push(weed);
+                scene.add(weed);
+            }
+        }
+
+        function showLevelModal(title, desc, btnText, callback) {
+            document.getElementById('modal-title').innerHTML = title;
+            document.getElementById('modal-desc').innerHTML = desc;
+            document.getElementById('modal-action-btn').innerText = btnText;
+            modalActionCallback = callback;
+            document.getElementById('game-modal').classList.add('active');
+        }
+
+        function handleModalAction() {
+            document.getElementById('game-modal').classList.remove('active');
+            if (typeof modalActionCallback === 'function') modalActionCallback();
+        }
+
+        function startLevel(index) {
+            if (index >= LEVELS.length) {
+                showLevelModal("🏆 GAME COMPLETE!", "You have cleared all 15 levels. You are a Master Operator!", "PLAY AGAIN", () => {
+                    score = 0; document.getElementById('score-display').innerText = score;
+                    startLevel(0);
+                });
+                return;
+            }
+
+            currentLevelIndex = index;
+            const cfg = LEVELS[index];
+            
+            document.getElementById('level-title-display').innerText = `Lvl ${cfg.level}: ${cfg.title}`;
+            levelTimeLeft = cfg.time;
+            
+            levelTargetPoop = cfg.poop;
+            levelTargetGrass = cfg.grass;
+            levelTargetWeeds = cfg.weed;
+            levelDeliveredPoop = 0;
+            levelTrimmedGrass = 0;
+            levelPulledWeeds = 0;
+
+            document.getElementById('poop-target').innerText = levelTargetPoop;
+            document.getElementById('poop-count').innerText = '0';
+            
+            const grassUI = document.getElementById('ui-grass');
+            if (levelTargetGrass > 0) {
+                grassUI.style.display = 'flex';
+                document.getElementById('grass-target').innerText = levelTargetGrass;
+                document.getElementById('grass-count').innerText = '0';
+                document.getElementById('tool-btn-1').classList.remove('tool-locked'); 
+            } else {
+                grassUI.style.display = 'none';
+                document.getElementById('tool-btn-1').classList.add('tool-locked');
+            }
+
+            const weedUI = document.getElementById('ui-weed');
+            if (levelTargetWeeds > 0) {
+                weedUI.style.display = 'flex';
+                document.getElementById('weed-target').innerText = levelTargetWeeds;
+                document.getElementById('weed-count').innerText = '0';
+                document.getElementById('tool-btn-2').classList.remove('tool-locked'); 
+            } else {
+                weedUI.style.display = 'none';
+                document.getElementById('tool-btn-2').classList.add('tool-locked');
+            }
+
+            // Reset Vehicle
+            vehiclePos.set(0, 0, 0);
+            vehicleHeading = 0;
+            turretSlewAngle = 0;
+            boomPitch = 0.5;
+            stickPitch = -0.2;
+            setAttachment(0);
+
+            spawnLevelEntities(cfg);
+            
+            isTimerPaused = false;
+            const pauseBtn = document.getElementById('pause-timer-btn');
+            pauseBtn.innerText = "⏸️";
+            pauseBtn.classList.remove('paused');
+            
+            if (levelTimerInterval) clearInterval(levelTimerInterval);
+            levelTimerInterval = setInterval(() => {
+                if (!gameActive || isTimerPaused) return;
+                levelTimeLeft--;
+                document.getElementById('time-left').innerText = levelTimeLeft;
+                if (levelTimeLeft <= 0) {
+                    onLevelFailed();
+                }
+            }, 1000);
+
+            gameActive = true;
+        }
+
+        function toggleTimer() {
+            isTimerPaused = !isTimerPaused;
+            const btn = document.getElementById('pause-timer-btn');
+            if (isTimerPaused) {
+                btn.innerText = "▶️";
+                btn.classList.add('paused');
+            } else {
+                btn.innerText = "⏸️";
+                btn.classList.remove('paused');
+            }
+        }
+
+        function checkLevelCompletion() {
+            if (levelDeliveredPoop >= levelTargetPoop && 
+                levelTrimmedGrass >= levelTargetGrass && 
+                levelPulledWeeds >= levelTargetWeeds) {
+                onLevelComplete();
+            }
+        }
+
+        function onLevelComplete() {
+            gameActive = false;
+            clearInterval(levelTimerInterval);
+            let timeBonus = levelTimeLeft * 10;
+            score += timeBonus;
+            document.getElementById('score-display').innerText = score;
+            
+            showLevelModal(
+                "🎉 LEVEL COMPLETE!",
+                `Objectives cleared with ${levelTimeLeft}s left!<br><b>Time Bonus: +${timeBonus} PTS</b>`,
+                "NEXT LEVEL ►",
+                () => startLevel(currentLevelIndex + 1)
+            );
+        }
+
+        function onLevelFailed() {
+            gameActive = false;
+            clearInterval(levelTimerInterval);
+            showLevelModal(
+                "⏰ TIME'S UP!",
+                `You ran out of time! Keep trying!`,
+                "RETRY LEVEL ↺",
+                () => startLevel(currentLevelIndex)
+            );
+        }
+
+        function setAttachment(idx) {
+            if (document.getElementById(`tool-btn-${idx}`).classList.contains('tool-locked')) return;
+            
+            activeAttachment = idx;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tool-btn-${idx}`).classList.add('active');
+
+            bucketMesh.visible = (idx === 0);
+            whackerHeadMesh.visible = (idx === 1);
+            weedPullerMesh.visible = (idx === 2);
+        }
+
+        function cycleAttachment() {
+            let next = (activeAttachment + 1) % 3;
+            while (document.getElementById(`tool-btn-${next}`).classList.contains('tool-locked')) {
+                next = (next + 1) % 3;
+            }
+            setAttachment(next);
+        }
+
+        function setupInputListeners() {
+            window.addEventListener('keydown', (e) => {
+                const k = e.key.toLowerCase(); const code = e.code;
+                if (k === 'w' || code === 'ArrowUp') inputs.fwd = true;
+                if (k === 's' || code === 'ArrowDown') inputs.rev = true;
+                if (k === 'a' || code === 'ArrowLeft') inputs.steerL = true;
+                if (k === 'd' || code === 'ArrowRight') inputs.steerR = true;
+                if (k === 'j' || code === 'Numpad4') inputs.slewL = true;
+                if (k === 'l' || code === 'Numpad6') inputs.slewR = true;
+                if (k === 'i' || code === 'Numpad8') inputs.boomUp = true;
+                if (k === 'k' || code === 'Numpad2') inputs.boomDn = true;
+                if (k === 'u' || code === 'Numpad7') inputs.stickIn = true;
+                if (k === 'o' || code === 'Numpad9') inputs.stickOut = true;
+                
+                if (code === 'Space') { e.preventDefault(); cycleAttachment(); }
+                if (k === 'e' || code === 'Numpad5') inputs.action = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase(); const code = e.code;
+                if (k === 'w' || code === 'ArrowUp') inputs.fwd = false;
+                if (k === 's' || code === 'ArrowDown') inputs.rev = false;
+                if (k === 'a' || code === 'ArrowLeft') inputs.steerL = false;
+                if (k === 'd' || code === 'ArrowRight') inputs.steerR = false;
+                if (k === 'j' || code === 'Numpad4') inputs.slewL = false;
+                if (k === 'l' || code === 'Numpad6') inputs.slewR = false;
+                if (k === 'i' || code === 'Numpad8') inputs.boomUp = false;
+                if (k === 'k' || code === 'Numpad2') inputs.boomDn = false;
+                if (k === 'u' || code === 'Numpad7') inputs.stickIn = false;
+                if (k === 'o' || code === 'Numpad9') inputs.stickOut = false;
+                if (k === 'e' || code === 'Numpad5') inputs.action = false;
+            });
+        }
+
+        function buildExcavator() {
+            const trackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+            const chassisMat = new THREE.MeshStandardMaterial({ color: 0x22222b, roughness: 0.7, metalness: 0.4 });
+            const yellowMat = new THREE.MeshStandardMaterial({ color: 0xf57c00, roughness: 0.3, metalness: 0.4 });
+            const chromeMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.95, roughness: 0.05 });
+            const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.3 });
+            
+            excavatorChassis = new THREE.Group();
+            excavatorChassis.position.copy(vehiclePos);
+            scene.add(excavatorChassis);
+
+            const trackL = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 4.5), trackMat);
+            trackL.position.set(-1.4, 0.6, 0); trackL.castShadow = true;
+            excavatorChassis.add(trackL);
+            const trackR = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 4.5), trackMat);
+            trackR.position.set(1.4, 0.6, 0); trackR.castShadow = true;
+            excavatorChassis.add(trackR);
+
+            const baseBody = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 3.5), chassisMat);
+            baseBody.position.set(0, 1.0, 0); baseBody.castShadow = true;
+            excavatorChassis.add(baseBody);
+
+            // TRUCK BED (Attached to chassis, doesn't spin with turret)
+            cargoBedGroup = new THREE.Group();
+            cargoBedGroup.position.set(0, 1.1, -3.2); // Behind the cab/turret
+            excavatorChassis.add(cargoBedGroup);
+            
+            const bedColor = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.7, metalness: 0.2 }); // Red dump bed
+            // Floor
+            const bFloor = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.2, 3.2), bedColor);
+            cargoBedGroup.add(bFloor);
+            // Walls
+            const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 3.2), bedColor);
+            bLeft.position.set(-1.4, 0.5, 0); cargoBedGroup.add(bLeft);
+            const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 3.2), bedColor);
+            bRight.position.set(1.4, 0.5, 0); cargoBedGroup.add(bRight);
+            const bBack = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.2, 0.2), bedColor);
+            bBack.position.set(0, 0.5, -1.5); cargoBedGroup.add(bBack);
+            const bFront = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.2, 0.2), bedColor);
+            bFront.position.set(0, 0.5, 1.5); cargoBedGroup.add(bFront);
+
+            turretHouse = new THREE.Group();
+            turretHouse.position.set(0, 1.4, 0);
+            excavatorChassis.add(turretHouse);
+
+            const cab = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.8, 1.6), yellowMat);
+            cab.position.set(-0.6, 0.9, 0.5); cab.castShadow = true;
+            turretHouse.add(cab);
+
+            const engineBody = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 2.0), yellowMat);
+            engineBody.position.set(0, 0.7, -1.0); engineBody.castShadow = true;
+            turretHouse.add(engineBody);
+
+            const counterWeight = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.0, 0.8), darkMetalMat);
+            counterWeight.position.set(0, 0.5, -2.0); counterWeight.castShadow = true;
+            turretHouse.add(counterWeight);
+
+            // ARM HIERARCHY
+            boomArm = new THREE.Group();
+            boomArm.position.set(0.6, 1.0, 1.0);
+            turretHouse.add(boomArm);
+
+            const pinGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.8);
+            pinGeo.rotateZ(Math.PI/2);
+            boomArm.add(new THREE.Mesh(pinGeo, chromeMat));
+
+            const boomMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.6), yellowMat);
+            boomMesh.position.set(0, 2.0, 0); boomMesh.castShadow = true;
+            boomArm.add(boomMesh);
+
+            stickArm = new THREE.Group();
+            stickArm.position.set(0, 3.9, 0);
+            boomArm.add(stickArm);
+            stickArm.add(new THREE.Mesh(pinGeo, chromeMat));
+
+            const stickMesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.6, 0.5), yellowMat);
+            stickMesh.position.set(0, 1.6, 0); stickMesh.castShadow = true;
+            stickArm.add(stickMesh);
+
+            clawMagnet = new THREE.Group();
+            clawMagnet.position.set(0, 3.3, 0);
+            stickArm.add(clawMagnet);
+            clawMagnet.add(new THREE.Mesh(pinGeo, chromeMat));
+
+            // ATTACHMENT 0: Bucket
+            bucketMesh = new THREE.Group();
+            const bucketBase = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 1.0), darkMetalMat);
+            bucketBase.position.set(0, -0.5, 0);
+            bucketMesh.add(bucketBase);
+            const toothMat = new THREE.MeshStandardMaterial({ color: 0xffca28 });
+            for(let i=0; i<4; i++) {
+                const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.4), toothMat);
+                tooth.rotation.x = Math.PI;
+                tooth.position.set(-0.45 + (i*0.3), -1.2, 0.4);
+                bucketMesh.add(tooth);
+            }
+            clawMagnet.add(bucketMesh);
+
+            // ATTACHMENT 1: Whacker
+            whackerHeadMesh = new THREE.Group();
+            const motorMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8), yellowMat);
+            motorMesh.rotation.x = Math.PI/2; motorMesh.position.set(0, -0.4, 0);
+            whackerHeadMesh.add(motorMesh);
+            const guardMesh = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.1, 16, 1, false, 0, Math.PI), darkMetalMat);
+            guardMesh.position.set(0, -0.3, 0); guardMesh.rotation.x = Math.PI/2;
+            whackerHeadMesh.add(guardMesh);
+            trimmerLine = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 0.1), new THREE.MeshStandardMaterial({ color: 0x76ff03, emissive: 0x336600 }));
+            trimmerLine.position.set(0, -0.4, 0.3);
+            whackerHeadMesh.add(trimmerLine);
+            whackerHeadMesh.visible = false;
+            clawMagnet.add(whackerHeadMesh);
+
+            // ATTACHMENT 2: Weed Puller
+            weedPullerMesh = new THREE.Group();
+            const pullerBase = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), darkMetalMat);
+            pullerBase.position.y = -0.3; weedPullerMesh.add(pullerBase);
+            const prong1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 0.2), darkMetalMat);
+            prong1.position.set(-0.25, -1.0, 0); weedPullerMesh.add(prong1);
+            const prong2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 0.2), darkMetalMat);
+            prong2.position.set(0.25, -1.0, 0); weedPullerMesh.add(prong2);
+            weedPullerMesh.visible = false;
+            clawMagnet.add(weedPullerMesh);
+        }
+
+        function createPickupGuidanceVisuals() {
+            // Glowing Ground Ring
+            const ringGeo = new THREE.RingGeometry(1.0, 1.5, 32);
+            ringGeo.rotateX(-Math.PI / 2);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e676, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+            targetHighlightRing = new THREE.Mesh(ringGeo, ringMat);
+            targetHighlightRing.visible = false;
+            scene.add(targetHighlightRing);
+
+            // Obvious Laser Beam
+            const laserMat = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 3 });
+            const laserGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,-1,0)]);
+            laserLine = new THREE.Line(laserGeo, laserMat);
+            laserLine.visible = false;
+            scene.add(laserLine);
+
+            stickCamAnchor = new THREE.Object3D();
+            stickCamAnchor.position.set(0, 1.0, -0.8);
+            stickArm.add(stickCamAnchor);
+        }
+
+        function setupCameraOrbitControls() {
+            const container = document.getElementById('canvas-container');
+            container.addEventListener('pointerdown', (e) => {
+                if(cameraViewMode !== 0) return;
+                isDraggingCam = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            container.addEventListener('pointermove', (e) => {
+                if (!isDraggingCam || cameraViewMode !== 0) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                camYaw -= deltaX * 0.005;
+                camPitch = Math.max(0.1, Math.min(1.4, camPitch + deltaY * 0.005));
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('pointerup', () => { isDraggingCam = false; });
+            window.addEventListener('pointercancel', () => { isDraggingCam = false; });
+            container.addEventListener('wheel', (e) => {
+                if(cameraViewMode !== 0) return;
+                camDistance = Math.max(10, Math.min(50, camDistance + e.deltaY * 0.05));
+            });
+        }
+
+        function cycleCameraView() {
+            cameraViewMode = (cameraViewMode + 1) % 3;
+            const camTag = document.getElementById('cam-view-btn');
+            if (cameraViewMode === 0) {
+                if (camTag) camTag.innerText = "🎥 ORBIT CAM";
+            } else if (cameraViewMode === 1) {
+                if (camTag) camTag.innerText = "🏗️ TOOL CAM";
+            } else {
+                if (camTag) camTag.innerText = "🚜 CABIN CAM";
+            }
+        }
+
+        function triggerScorePopup(pts, text) {
+            score += pts;
+            document.getElementById('score-display').innerText = score;
+            const p = document.createElement('div');
+            p.className = 'score-popup';
+            p.innerHTML = `+${pts} ${text}`;
+            p.style.left = '50%'; p.style.top = '50%';
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 1000);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!gameActive) {
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // --- Snappy Arcade Vehicle Driving ---
+            let speed = 0;
+            if (inputs.fwd) speed = 0.3; // Fast, direct drive
+            if (inputs.rev) speed = -0.3;
+            
+            // Turning (can turn in place or while moving)
+            if (inputs.steerL) vehicleHeading += 0.04 * (speed < 0 ? -1 : 1); // Reverse logic if backing up
+            if (inputs.steerR) vehicleHeading -= 0.04 * (speed < 0 ? -1 : 1);
+
+            let nextX = vehiclePos.x + Math.sin(vehicleHeading) * speed;
+            let nextZ = vehiclePos.z + Math.cos(vehicleHeading) * speed;
+            
+            // Vehicle Collision detection against physical obstacles
+            let collision = false;
+            for(let obs of obstacles) {
+                let dx = nextX - obs.x;
+                let dz = nextZ - obs.z;
+                if (dx*dx + dz*dz < (obs.radius + 2.0) * (obs.radius + 2.0)) {
+                    collision = true; break;
+                }
+            }
+
+            if (!collision) {
+                vehiclePos.x = nextX;
+                vehiclePos.z = nextZ;
+            }
+            
+            excavatorChassis.position.copy(vehiclePos);
+            excavatorChassis.rotation.y = vehicleHeading;
+
+            // --- Crazy Taxi Scoring Logic (Drive-Through) ---
+            const distToDisposal = vehiclePos.distanceTo(new THREE.Vector3(27, 0, -13)); // Checks green pad in front of dumpster
+            if (distToDisposal < 8.0) {
+                let itemsDelivered = false;
+                for (let i = cargoBedGroup.children.length - 1; i >= 0; i--) {
+                    let item = cargoBedGroup.children[i];
+                    if (item.userData && (item.userData.type === 'poop' || item.userData.type === 'weed')) {
+                        item.userData.delivered = true;
+                        item.visible = false;
+                        cargoBedGroup.remove(item); // Empty the bed
+                        
+                        if (item.userData.type === 'poop') {
+                            levelDeliveredPoop++;
+                            document.getElementById('poop-count').innerText = levelDeliveredPoop;
+                        } else if (item.userData.type === 'weed') {
+                            levelPulledWeeds++;
+                            document.getElementById('weed-count').innerText = levelPulledWeeds;
+                        }
+                        itemsDelivered = true;
+                    }
+                }
+                if (itemsDelivered) {
+                    triggerScorePopup(100, "DELIVERY CASH-IN!");
+                    checkLevelCompletion();
+                }
+            }
+
+            // --- Hydraulics / Boom Control ---
+            if (inputs.slewL) turretSlewAngle += 0.03;
+            if (inputs.slewR) turretSlewAngle -= 0.03;
+            turretHouse.rotation.y = turretSlewAngle;
+
+            // Vastly expanded joint limits so tool can easily hit the ground
+            if (inputs.boomUp) boomPitch = Math.max(-1.5, boomPitch - 0.03);
+            if (inputs.boomDn) boomPitch = Math.min(1.5, boomPitch + 0.03);
+            boomArm.rotation.x = boomPitch;
+
+            if (inputs.stickIn) stickPitch = Math.min(2.5, stickPitch + 0.03);
+            if (inputs.stickOut) stickPitch = Math.max(-1.5, stickPitch - 0.03);
+            stickArm.rotation.x = stickPitch;
+
+            clawMagnet.rotation.x = -boomPitch - stickPitch; // Keep level
+
+            // --- Interaction Logic & Lasers ---
+            const clawWorldPos = new THREE.Vector3();
+            clawMagnet.getWorldPosition(clawWorldPos);
+            clawWorldPos.y -= 1.0; // Point is near tip of tool
+
+            let nearestItem = null;
+            // Extremely tightened grab distances so you physically have to touch/align with the item
+            let minDist = 1.2; 
+            const MAX_VERTICAL_DIST = 2.0; 
+
+            if (activeAttachment === 0 && !grabbedItem) {
+                poopItems.forEach(p => {
+                    if (p.userData.delivered) return;
+                    const d = clawWorldPos.distanceTo(new THREE.Vector3(p.position.x, clawWorldPos.y, p.position.z));
+                    const verticalDist = Math.abs(clawWorldPos.y - p.position.y);
+                    if (d < minDist && verticalDist < MAX_VERTICAL_DIST) { minDist = d; nearestItem = p; }
+                });
+            }
+            else if (activeAttachment === 1) {
+                grassItems.forEach(g => {
+                    if (g.userData.trimmed) return;
+                    const d = clawWorldPos.distanceTo(new THREE.Vector3(g.position.x, clawWorldPos.y, g.position.z));
+                    const verticalDist = Math.abs(clawWorldPos.y - g.position.y);
+                    if (d < minDist && verticalDist < MAX_VERTICAL_DIST) { minDist = d; nearestItem = g; }
+                });
+                if(inputs.action) trimmerLine.rotation.y += 0.8;
+            }
+            else if (activeAttachment === 2 && !grabbedItem) {
+                weedItems.forEach(w => {
+                    if (w.userData.pulled) return;
+                    const d = clawWorldPos.distanceTo(new THREE.Vector3(w.position.x, clawWorldPos.y, w.position.z));
+                    const verticalDist = Math.abs(clawWorldPos.y - w.position.y);
+                    if (d < minDist && verticalDist < MAX_VERTICAL_DIST) { minDist = d; nearestItem = w; }
+                });
+            }
+
+            // Update UI and Lasers
+            const badge = document.getElementById('magnet-status');
+            if (nearestItem && !grabbedItem && (!inputs.action || activeAttachment !== 1)) {
+                // Show visuals
+                targetHighlightRing.visible = true;
+                targetHighlightRing.position.set(nearestItem.position.x, 0.1, nearestItem.position.z);
+                
+                laserLine.visible = true;
+                const positions = laserLine.geometry.attributes.position.array;
+                positions[0] = clawWorldPos.x; positions[1] = clawWorldPos.y; positions[2] = clawWorldPos.z;
+                positions[3] = nearestItem.position.x; positions[4] = nearestItem.position.y + 0.5; positions[5] = nearestItem.position.z;
+                laserLine.geometry.attributes.position.needsUpdate = true;
+                
+                let toolName = activeAttachment === 0 ? "CLAW" : activeAttachment === 1 ? "WHACKER" : "PULLER";
+                badge.innerText = `🧲 IN RANGE`;
+                badge.className = "magnet-status-badge in-range";
+            } else {
+                targetHighlightRing.visible = false;
+                laserLine.visible = false;
+                if(grabbedItem) {
+                    badge.innerText = `📦 HELD`;
+                    badge.className = "magnet-status-badge attached";
+                } else {
+                    let toolName = activeAttachment === 0 ? "CLAW" : activeAttachment === 1 ? "WHACKER" : "PULLER";
+                    badge.innerText = `🧲 OUT OF RANGE`;
+                    badge.className = "magnet-status-badge";
+                }
+            }
+
+            // --- Action Logic ---
+            const actionJustPressed = (inputs.action && !lastActionState);
+            lastActionState = inputs.action;
+
+            if (actionJustPressed) {
+                if (grabbedItem) {
+                    // Check if dropping in the truck bed
+                    let droppedPos = new THREE.Vector3();
+                    grabbedItem.getWorldPosition(droppedPos);
+                    let localDropPos = excavatorChassis.worldToLocal(droppedPos.clone());
+                    
+                    // Bed is located at Z: -3.2 relative to chassis
+                    if (localDropPos.x > -2.0 && localDropPos.x < 2.0 && localDropPos.z > -5.5 && localDropPos.z < -1.0) {
+                        cargoBedGroup.attach(grabbedItem);
+                        // Pile them up slightly inside the bed randomly
+                        grabbedItem.position.set((Math.random()-0.5)*2.0, 0.5 + Math.random()*1.0, (Math.random()-0.5)*2.0);
+                        triggerScorePopup(10, "LOADED!");
+                    } else {
+                        // Missed the bed, drop on ground
+                        scene.attach(grabbedItem);
+                        grabbedItem.position.y = 0; // lock to floor
+                    }
+                    grabbedItem = null;
+                }
+                else if (nearestItem) {
+                    // Grab
+                    if (activeAttachment === 0 && nearestItem.userData.type === 'poop') {
+                        grabbedItem = nearestItem;
+                        clawMagnet.attach(grabbedItem);
+                        grabbedItem.position.set(0, 0, 0.5); 
+                        triggerScorePopup(25, "SCOOPED!");
+                    }
+                    else if (activeAttachment === 2 && nearestItem.userData.type === 'weed') {
+                        grabbedItem = nearestItem;
+                        clawMagnet.attach(grabbedItem);
+                        grabbedItem.position.set(0, -0.5, 0.5); 
+                        triggerScorePopup(30, "PULLED!");
+                    }
+                }
+            }
+
+            // Whacker continuous action
+            if (activeAttachment === 1 && inputs.action && nearestItem && nearestItem.userData.type === 'grass') {
+                nearestItem.userData.trimmed = true;
+                nearestItem.visible = false;
+                levelTrimmedGrass++;
+                document.getElementById('grass-count').innerText = levelTrimmedGrass;
+                triggerScorePopup(15, "TRIMMED!");
+                checkLevelCompletion();
+            }
+
+            // --- Cameras ---
+            if (cameraViewMode === 0) { // Orbit
+                const rigPos = excavatorChassis.position;
+                const cx = rigPos.x + Math.sin(camYaw) * camDistance * Math.cos(camPitch);
+                const cy = rigPos.y + Math.sin(camPitch) * camDistance + 2;
+                const cz = rigPos.z + Math.cos(camYaw) * camDistance * Math.cos(camPitch);
+                camera.position.set(cx, cy, cz);
+                camera.lookAt(rigPos.x, rigPos.y + 2, rigPos.z);
+            } 
+            else if (cameraViewMode === 1) { // Tool Cam
+                const toolPos = new THREE.Vector3();
+                stickCamAnchor.getWorldPosition(toolPos);
+                camera.position.copy(toolPos);
+                const lookTarget = new THREE.Vector3();
+                clawMagnet.getWorldPosition(lookTarget);
+                lookTarget.y -= 2; 
+                camera.lookAt(lookTarget);
+            } 
+            else { // Cabin Cam
+                const cabPos = new THREE.Vector3(-0.6, 1.8, 0.5);
+                turretHouse.localToWorld(cabPos);
+                camera.position.copy(cabPos);
+                const cabLook = new THREE.Vector3(0, 1.5, 10);
+                turretHouse.localToWorld(cabLook);
+                camera.lookAt(cabLook);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
