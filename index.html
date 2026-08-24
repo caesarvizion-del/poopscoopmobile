@@ -1,134 +1,19 @@
-99e8880417d7ca42c8def2ab10a9b2bd3bbfb0af            -webkit-user-select: none;
-        }
-
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            position: relative;
-        }
-
-        /* Portrait layout adaptations */
-        @media (orientation: portrait) {
-            #top-bar {
-                flex-wrap: wrap;
-                padding: 0.35rem;
-                gap: 0.35rem;
-            }
-            .hud-pill {
-                font-size: 0.75rem;
-                padding: 0.2rem 0.5rem;
-            }
-            #mobile-controls {
-                bottom: 1rem;
-            }
-            .joystick-zone {
-                width: 110px !important;
-                height: 110px !important;
-            }
-            .joystick-knob {
-                width: 45px !important;
-                height: 45px !important;
-            }
-            #camera-controls-mobile {
-                top: auto;
-                bottom: 11rem;
-                right: 1rem;
-            }
-        }
-    </style>
-</head>
-<body class="select-none">
-    <div id="game-container">
-        <!-- UI Top Bar -->
-        <div id="top-bar" class="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center justify-between gap-2 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700/50 text-white w-[95%] max-w-4xl shadow-2xl">
-            <!-- Left Info Section -->
-            <div class="flex items-center gap-3">
-                <span class="font-bold text-amber-400 text-sm md:text-base hidden sm:inline">🚜 Backyard Excavator</span>
-                <button id="fullscreen-btn" onclick="toggleFullscreen()" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 px-2.5 py-1 rounded-xl border border-slate-600 text-xs flex items-center gap-1 transition-all">
-                    <span>⛶</span> <span class="hidden sm:inline">Fullscreen</span>
-                </button>
-            </div>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Backyard Excavator Simulator</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            width: 100%; 
-            height: 100%; 
-            height: 100dvh;
-            overflow: hidden; 
-            background-color: #87CEEB; 
-            font-family: 'Inter', sans-serif;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        #game-container {
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            position: relative;
-        }
-
-        /* Portrait layout adaptations */
-        @media (orientation: portrait) {
-            #top-bar {
-                flex-wrap: wrap;
-                padding: 0.35rem;
-                gap: 0.35rem;
-            }
-            .hud-pill {
-                font-size: 0.75rem;
-                padding: 0.2rem 0.5rem;
-            }
-            #mobile-controls {
-                bottom: 1rem;
-            }
-            .joystick-zone {
-                width: 110px !important;
-                height: 110px !important;
-            }
-            .joystick-knob {
-                width: 45px !important;
-                height: 45px !important;
-            }
-            #camera-controls-mobile {
-                top: auto;
-                bottom: 11rem;
-                right: 1rem;
-            }
-        }
-    </style>
-</head>
-<body class="select-none">
-    <div id="game-container">
-        <!-- UI Top Bar -->
-        <div id="top-bar" class="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center justify-between gap-2 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700/50 text-white w-[95%] max-w-4xl shadow-2xl">
-        .hud-top-bar { 
-            position: absolute; 
-            top: 0; left: 0; width: 100%; 
-            background: rgba(15, 23, 42, 0.9); <!-- ... existing code ... -->
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backyard Excavator Simulator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #87CEEB; font-family: 'Inter', sans-serif; }
-<!-- ... existing code ... -->
-```
-
-eof
-
-### Summary of Changes:
-- Added `https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js` to the document head to resolve the `ReferenceError: THREE is not defined` error.
+        #canvas-container { width: 100%; height: 100%; display: block; }
+        
+        .hud-top-bar { 
+            position: absolute; 
+            top: 0; left: 0; width: 100%; 
+            background: rgba(15, 23, 42, 0.9); 
             border-bottom: 2px solid #334155; 
             color: white; text-shadow: 1px 1px 2px black; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
